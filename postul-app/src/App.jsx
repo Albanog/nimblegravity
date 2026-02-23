@@ -1,92 +1,69 @@
 import { useEffect, useState } from "react";
+import { getJobs } from "./services/jobService";
+import JobsTable from "./components/jobTable";
+import { submitApplication } from "./services/applicationPostService";
 import "./App.css";
 
-function App() {
+export default function App() {
+
   const [jobs, setJobs] = useState([]);
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [repoUrl, setRepoUrl] = useState("");
-  const [status, setStatus] = useState("loading");
-
+  const [repos, setRepos] = useState({});
+  
   useEffect(() => {
-    async function loadJobs() {
-      try {
-        const res = await fetch("https://botfilter-h5ddh6dye8exb7ha.centralus-01.azurewebsites.net/api/jobs/get-list");
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        setJobs(data);
-        setStatus("success");
-      } catch {
-        setStatus("error");
-      }
-    }
-
-    loadJobs();
+    getJobs()
+      .then(setJobs)
+      .catch((err) => {
+        console.error("Error fetching jobs", err);
+        alert("Failed to load jobs");
+      });
   }, []);
 
-  const handleRowClick = (job) => {
-    setSelectedJob(job);
-    setRepoUrl("");
+
+  const handleChange = (jobId, value) => {
+    setRepos((prev) => ({
+      ...prev,
+      [jobId]: value,
+    }));
   };
 
-  const handleSubmit = () => {
-    if (!selectedJob) {
-      alert("Please select a position");
-      return;
-    }
 
-    if (!repoUrl.trim()) {
+  const handleSubmit = async(job) => {
+    const repoUrl = repos[job.id];
+
+    if (!repoUrl) {
       alert("Please enter repository URL");
       return;
     }
 
-    console.log("Applying to:", selectedJob.title);
-    console.log("Repo:", repoUrl);
+    try {
+      const result = await submitApplication({
+        uuid: "82196345-044e-44d5-ac91-73ce402de74f",
+        jobId: job.id,
+        candidateId: "74191510005",
+        repoUrl,
+      });
+
+      if (result.ok) {
+        alert("Application submitted!");
+      } else {
+        alert("Unexpected server response");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Failed to submit application");
+    }
   };
 
-  if (status === "loading") return <p>Loading positions...</p>;
-  if (status === "error") return <p>Error loading jobs</p>;
-
   return (
-    <div style={{ maxWidth: 800, margin: "40px auto" }}>
-      <h1>Open Positions</h1>
+    <div className="app-container">
+      <h1>Positions</h1>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Title</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {jobs.map((job) => (
-            <tr
-              key={job.id}
-              onClick={() => handleRowClick(job)}
-              className={selectedJob?.id === job.id ? "selected-row" : ""}
-            >
-              <td>{job.title}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div style={{ marginTop: 20 }}>
-        <h3>
-          Selected Position:{" "}
-          {selectedJob ? selectedJob.title : "None"}
-        </h3>
-
-        <input
-          type="text"
-          placeholder="GitHub Repository URL"
-          value={repoUrl}
-          onChange={(e) => setRepoUrl(e.target.value)}
-        />
-
-        <button onClick={handleSubmit}>Submit</button>
-      </div>
+      <JobsTable
+        jobs={jobs}
+        repos={repos}
+        onChange={handleChange}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }
-
-export default App;
